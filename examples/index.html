@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>canvas-window Interactive Demo</title>
+  <link rel="stylesheet" href="../src/ui/style.css">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+    }
+    body {
+      margin: 0;
+      padding: 32px;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: normal;
+      background: #0284c7;
+      color: white;
+      padding: 3px 8px;
+      border-radius: 9999px;
+    }
+    .badge.isolated {
+      background: #10b981;
+    }
+    .badge.not-isolated {
+      background: #f59e0b;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 24px;
+      max-width: 1200px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    h2 {
+      font-size: 18px;
+      margin-top: 0;
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    button {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+    button:hover {
+      background: #0369a1;
+    }
+    button.secondary {
+      background: #334155;
+      color: #e2e8f0;
+    }
+    button.secondary:hover {
+      background: #475569;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #1e293b;
+      font-size: 13px;
+    }
+    .stat-label {
+      color: var(--muted);
+    }
+    .stat-val {
+      font-family: monospace;
+      color: #38bdf8;
+    }
+    .guide-box {
+      background: #1e293b;
+      border-left: 4px solid var(--accent);
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin-top: 16px;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+  <h1>
+    <span>🪟 canvas-window</span>
+    <span class="badge" id="isolation-badge">Checking...</span>
+  </h1>
+  <p style="color: var(--muted); max-width: 800px;">
+    Zero-dependency floating draggable canvas window and input coordinator. Demonstrating sub-millisecond
+    SharedArrayBuffer input coordination with a background Web Worker and dynamic pop-out window docking.
+  </p>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2>Window Controls</h2>
+        <div class="btn-group">
+          <button id="btn-open">Open Window</button>
+          <button id="btn-close" class="secondary">Close Window</button>
+          <button id="btn-min" class="secondary">Toggle Minimize</button>
+          <button id="btn-popout" class="secondary">Pop Out / Dock</button>
+          <button id="btn-focus" class="secondary">Focus Canvas</button>
+        </div>
+
+        <h2>Presets & Dimensions</h2>
+        <div class="btn-group">
+          <button class="secondary btn-res" data-w="640" data-h="360">640 x 360</button>
+          <button class="secondary btn-res" data-w="800" data-h="450">800 x 450</button>
+          <button class="secondary btn-res" data-w="960" data-h="540">960 x 540</button>
+        </div>
+
+        <div class="guide-box">
+          <strong>Interactive Test Guide:</strong>
+          <ul style="margin: 6px 0 0 16px; padding: 0;">
+            <li>Drag the window by its titlebar around the screen.</li>
+            <li>Click <strong>Pop Out</strong> (or header <code>↗</code>) to detach canvas into a separate browser window.</li>
+            <li>In the popup, move mouse, click, and use <kbd>WASD</kbd> or arrow keys.</li>
+            <li>Click <strong>Dock into page</strong> in the popup or below, and verify seamless re-attachment.</li>
+            <li>Click minimize (<code>_</code>) to collapse titlebar, note icon swaps to <code>□</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Live Diagnostics</h2>
+        <div class="stat-row">
+          <span class="stat-label">Cross-Origin Isolated:</span>
+          <span class="stat-val" id="diag-isolated">-</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Window Open:</span>
+          <span class="stat-val" id="diag-is-open">-</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Canvas Visible:</span>
+          <span class="stat-val" id="diag-is-visible">-</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Popped Out:</span>
+          <span class="stat-val" id="diag-is-popped">-</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Mouse Coordinates:</span>
+          <span class="stat-val" id="diag-mouse">(-1, -1)</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Mouse Buttons:</span>
+          <span class="stat-val" id="diag-buttons">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">FPS:</span>
+          <span class="stat-val" id="diag-fps">0 FPS</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { CanvasWindow, InputCoordinator } from '../src/index.js';
+
+    // 1. Cross-Origin Isolation Check
+    const isIsolated = window.crossOriginIsolated === true;
+    const badge = document.getElementById('isolation-badge');
+    badge.textContent = isIsolated ? 'Cross-Origin Isolated (SAB Active)' : 'Non-Isolated (Fallback)';
+    badge.className = `badge ${isIsolated ? 'isolated' : 'not-isolated'}`;
+    document.getElementById('diag-isolated').textContent = String(isIsolated);
+
+    // 2. Allocate SharedArrayBuffer (or null fallback)
+    const sharedBuffer = isIsolated ? new SharedArrayBuffer(512) : null;
+
+    // 3. Initialize InputCoordinator
+    const inputCoordinator = new InputCoordinator({
+      sharedBuffer,
+      width: 800,
+      height: 450
+    });
+
+    // 4. Initialize CanvasWindow
+    const win = new CanvasWindow({
+      width: 800,
+      height: 450,
+      title: 'Interactive Worker Display',
+      sharedBuffer,
+      inputCoordinator,
+      onCloseRequested: () => updateDiag(),
+      onFocusChange: (f) => {},
+      onFrameActivity: (act) => console.log('Background activity:', act)
+    });
+
+    win.open(800, 450, 'Interactive Worker Display');
+
+    // 5. Spawn background Web Worker
+    const worker = new Worker(new URL('./demo-worker.js', import.meta.url), { type: 'module' });
+    worker.postMessage({
+      type: 'start',
+      sharedBuffer,
+      width: 800,
+      height: 450
+    });
+
+    worker.onmessage = (e) => {
+      if (e.data.type === 'frame') {
+        win.renderFrame(e.data.bitmap);
+        updateDiag();
+      } else if (e.data.type === 'fps') {
+        win.updateFps(e.data.fps);
+        document.getElementById('diag-fps').textContent = `${e.data.fps} FPS`;
+      }
+    };
+
+    function updateDiag() {
+      document.getElementById('diag-is-open').textContent = String(win.isOpen());
+      document.getElementById('diag-is-visible').textContent = String(win.isCanvasVisible());
+      document.getElementById('diag-is-popped').textContent = String(win.isPoppedOut);
+      document.getElementById('diag-mouse').textContent = `(${Math.round(inputCoordinator.mouseX)}, ${Math.round(inputCoordinator.mouseY)})`;
+      document.getElementById('diag-buttons').textContent = String(inputCoordinator.mouseButtons);
+    }
+
+    // Controls
+    document.getElementById('btn-open').addEventListener('click', () => win.open(win.width, win.height, win.title));
+    document.getElementById('btn-close').addEventListener('click', () => win.close());
+    document.getElementById('btn-min').addEventListener('click', () => win.toggleMinimize());
+    document.getElementById('btn-popout').addEventListener('click', () => win.togglePopOut());
+    document.getElementById('btn-focus').addEventListener('click', () => win.focus());
+
+    document.querySelectorAll('.btn-res').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const w = parseInt(btn.dataset.w, 10);
+        const h = parseInt(btn.dataset.h, 10);
+        win.open(w, h, `Interactive Display (${w}x${h})`);
+        worker.postMessage({ type: 'start', sharedBuffer, width: w, height: h });
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+{
+  "name": "canvas-window",
+  "version": "0.1.0",
+  "description": "Zero-dependency floating draggable canvas window and input coordinator for browser runtimes, Web Workers, and WebAssembly",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./window": {
+      "types": "./types/index.d.ts",
+      "import": "./src/ui/canvas-window.js"
+    },
+    "./input": {
+      "types": "./types/index.d.ts",
+      "import": "./src/input/input-coordinator.js"
+    },
+    "./protocol": {
+      "types": "./types/index.d.ts",
+      "import": "./src/protocol.js"
+    },
+    "./style.css": "./src/ui/style.css"
+  },
+  "files": [
+    "src",
+    "types",
+    "SPEC.md",
+    "README.md",
+    "AGENTS.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/canvas-window.test.js",
+    "demo": "node examples/serve.js",
+    "start": "node examples/serve.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/breeze833/canvas-window.git"
+  },
+  "keywords": [
+    "canvas",
+    "window",
+    "floating-window",
+    "input",
+    "sharedarraybuffer",
+    "atomics",
+    "web-worker",
+    "webassembly",
+    "wasi"
+  ],
+  "author": "breeze833",
+  "license": "MIT"
+}
