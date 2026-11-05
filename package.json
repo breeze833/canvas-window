@@ -1,6 +1,6 @@
 {
   "name": "canvas-window",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zero-dependency floating draggable canvas window and input coordinator for browser runtimes, Web Workers, and WebAssembly",
   "type": "module",
   "main": "./src/index.js",
@@ -21,6 +21,10 @@
     "./protocol": {
       "types": "./types/index.d.ts",
       "import": "./src/protocol.js"
+    },
+    "./worker": {
+      "types": "./types/index.d.ts",
+      "import": "./src/worker.js"
     },
     "./style.css": "./src/ui/style.css"
   },

@@ -1,17 +1,9 @@
 // canvas-window: Interactive Worker Demo
-// Reads input synchronously from SharedArrayBuffer and renders 60 FPS graphics to ImageBitmap
+// Reads input synchronously from SharedArrayBuffer via InputReader and renders 60 FPS graphics to ImageBitmap
 
-import {
-  OFF_MOUSE_X,
-  OFF_MOUSE_Y,
-  OFF_MOUSE_BUTTONS,
-  OFF_KEYS_DOWN,
-  OFF_FRAME_SYNC,
-  OFF_SHOULD_CLOSE
-} from '../src/protocol.js';
+import { InputReader } from '../src/worker.js';
 
-let sharedBuffer = null;
-let sharedView = null;
+const input = new InputReader();
 let offscreen = null;
 let ctx = null;
 let width = 800;
@@ -31,13 +23,9 @@ let frameCount = 0;
 self.onmessage = (e) => {
   const { type } = e.data;
   if (type === 'start') {
-    sharedBuffer = e.data.sharedBuffer || null;
+    input.setBuffer(e.data.sharedBuffer || null);
     width = e.data.width || 800;
     height = e.data.height || 450;
-
-    if (sharedBuffer) {
-      sharedView = new DataView(sharedBuffer);
-    }
 
     offscreen = new OffscreenCanvas(width, height);
     ctx = offscreen.getContext('2d');
@@ -51,43 +39,28 @@ self.onmessage = (e) => {
 function renderLoop(time) {
   if (!isRunning || !ctx) return;
 
-  // 1. Read input synchronously
-  let mouseX = -1;
-  let mouseY = -1;
-  let mouseButtons = 0;
+  // 1. Read input synchronously via InputReader
+  const mouse = input.getMouse();
   let moveX = 0;
   let moveY = 0;
 
-  if (sharedView) {
-    mouseX = sharedView.getFloat32(OFF_MOUSE_X, true);
-    mouseY = sharedView.getFloat32(OFF_MOUSE_Y, true);
-    mouseButtons = sharedView.getUint32(OFF_MOUSE_BUTTONS, true);
-
-    // Read keys (W: 87, A: 65, S: 83, D: 68, Arrows: 262..265)
-    const isKeyDown = (key) => {
-      const word = Math.floor(key / 32);
-      const bit = key % 32;
-      const val = sharedView.getUint32(OFF_KEYS_DOWN + word * 4, true);
-      return ((val >>> bit) & 1) === 1;
-    };
-
-    if (isKeyDown(87) || isKeyDown(265)) moveY -= 4; // W or Up
-    if (isKeyDown(83) || isKeyDown(264)) moveY += 4; // S or Down
-    if (isKeyDown(65) || isKeyDown(263)) moveX -= 4; // A or Left
-    if (isKeyDown(68) || isKeyDown(262)) moveX += 4; // D or Right
-  }
+  // Read keys (W: 87, A: 65, S: 83, D: 68, Arrows: 262..265)
+  if (input.isKeyDown(87) || input.isKeyDown(265)) moveY -= 4; // W or Up
+  if (input.isKeyDown(83) || input.isKeyDown(264)) moveY += 4; // S or Down
+  if (input.isKeyDown(65) || input.isKeyDown(263)) moveX -= 4; // A or Left
+  if (input.isKeyDown(68) || input.isKeyDown(262)) moveX += 4; // D or Right
 
   playerX = Math.max(30, Math.min(width - 30, playerX + moveX));
   playerY = Math.max(30, Math.min(height - 30, playerY + moveY));
 
   // Spawn particles on new click
-  if (mouseButtons > 0 && prevButtons === 0 && mouseX >= 0 && mouseY >= 0) {
+  if (mouse.buttons > 0 && prevButtons === 0 && mouse.x >= 0 && mouse.y >= 0) {
     for (let i = 0; i < 24; i++) {
       const angle = (Math.PI * 2 * i) / 24;
       const speed = 2 + Math.random() * 4;
       particles.push({
-        x: mouseX,
-        y: mouseY,
+        x: mouse.x,
+        y: mouse.y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         alpha: 1.0,
@@ -95,7 +68,7 @@ function renderLoop(time) {
       });
     }
   }
-  prevButtons = mouseButtons;
+  prevButtons = mouse.buttons;
 
   // 2. Render graphics
   ctx.fillStyle = '#0f172a';
@@ -141,22 +114,22 @@ function renderLoop(time) {
   ctx.fillText('WASD / Arrows', playerX, playerY + 36);
 
   // Draw mouse cursor position
-  if (mouseX >= 0 && mouseY >= 0) {
-    ctx.strokeStyle = (mouseButtons > 0) ? '#f43f5e' : '#10b981';
+  if (mouse.x >= 0 && mouse.y >= 0) {
+    ctx.strokeStyle = (mouse.buttons > 0) ? '#f43f5e' : '#10b981';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(mouseX, mouseY, 16, 0, Math.PI * 2);
+    ctx.arc(mouse.x, mouse.y, 16, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.fillStyle = (mouseButtons > 0) ? '#f43f5e' : '#10b981';
+    ctx.fillStyle = (mouse.buttons > 0) ? '#f43f5e' : '#10b981';
     ctx.beginPath();
-    ctx.arc(mouseX, mouseY, 4, 0, Math.PI * 2);
+    ctx.arc(mouse.x, mouse.y, 4, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#94a3b8';
     ctx.font = '11px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(`(${Math.round(mouseX)}, ${Math.round(mouseY)}) [Buttons: ${mouseButtons}]`, mouseX + 18, mouseY - 10);
+    ctx.fillText(`(${Math.round(mouse.x)}, ${Math.round(mouse.y)}) [Buttons: ${mouse.buttons}]`, mouse.x + 18, mouse.y - 10);
   }
 
   // Update and draw particles

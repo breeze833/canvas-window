@@ -12,6 +12,7 @@ Zero-dependency floating draggable canvas window and input coordinator for Web W
 - 🪟 **Floating Draggable Window**: Integrated header dragging, minimization, resolution and FPS badges, and dark theme styling.
 - ↗️ **Detachable Pop-Out Window**: One-click detachment into an external browser popup window (`window.open`) with dedicated canvas and seamless dock-back restoration.
 - ⚡ **Zero-Latency Synchronous Input**: 512-byte `SharedArrayBuffer` memory layout coordinating mouse, touch, wheel, and keyboard states with background workers.
+- 🕹️ **Zero-DOM Worker InputReader**: High-level, ergonomic query methods (`isKeyDown()`, `getMouse()`, `isMouseButtonDown()`) for background Web Workers.
 - 🚀 **High-Performance Presentation**: Zero-copy `ImageBitmapRenderingContext` frame transfers directly to the browser compositor with pixel buffer fallbacks.
 - 🎯 **Click-to-Focus**: Automatically focuses the active canvas on window frame or header interactions, ensuring keyboard events are never missed.
 - 📦 **Zero External Runtime Dependencies**: Pure standard vanilla ES modules and standard browser APIs.
@@ -82,38 +83,39 @@ worker.onmessage = (e) => {
 
 ```javascript
 // worker.js
-import { OFF_MOUSE_X, OFF_MOUSE_Y, OFF_MOUSE_BUTTONS, OFF_KEYS_DOWN } from 'canvas-window/protocol';
+import { InputReader } from 'canvas-window/worker';
+
+const input = new InputReader();
+const canvas = new OffscreenCanvas(800, 450);
+const ctx = canvas.getContext('2d');
 
 self.onmessage = (e) => {
-  const { sharedBuffer } = e.data;
-  const view = new DataView(sharedBuffer);
-  const canvas = new OffscreenCanvas(800, 450);
-  const ctx = canvas.getContext('2d');
-
-  function renderLoop() {
-    // 1. Read input synchronously with zero latency
-    const mouseX = view.getFloat32(OFF_MOUSE_X, true);
-    const mouseY = view.getFloat32(OFF_MOUSE_Y, true);
-    const buttons = view.getUint32(OFF_MOUSE_BUTTONS, true);
-
-    // 2. Render graphics
-    ctx.fillStyle = '#111';
-    ctx.fillRect(0, 0, 800, 450);
-
-    ctx.fillStyle = buttons ? '#ff4081' : '#00e5ff';
-    ctx.beginPath();
-    ctx.arc(mouseX, mouseY, 20, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 3. Transfer frame to main thread
-    const bitmap = canvas.transferToImageBitmap();
-    self.postMessage({ type: 'frame', bitmap }, [bitmap]);
-
+  if (e.data.type === 'start') {
+    input.setBuffer(e.data.sharedBuffer);
     requestAnimationFrame(renderLoop);
   }
-
-  renderLoop();
 };
+
+function renderLoop() {
+  // 1. Read input synchronously with zero latency via InputReader
+  const mouse = input.getMouse();
+  const isMoving = input.isKeyDown(87) || input.isKeyDown(265); // W or ArrowUp
+
+  // 2. Render graphics
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, 800, 450);
+
+  ctx.fillStyle = input.isMouseLeftDown() ? '#ff4081' : '#00e5ff';
+  ctx.beginPath();
+  ctx.arc(mouse.x, mouse.y, 20, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 3. Transfer frame to main thread
+  const bitmap = canvas.transferToImageBitmap();
+  self.postMessage({ type: 'frame', bitmap }, [bitmap]);
+
+  requestAnimationFrame(renderLoop);
+}
 ```
 
 ---
@@ -165,6 +167,33 @@ In cross-origin isolated contexts, `InputCoordinator` continuously synchronizes 
 - `reset()`: Resets mouse positions, button masks, and key queues to zero.
 - `pollToBuffer(destPtr, target)`: Copies 372 bytes of active input state directly into linear memory or an `ArrayBuffer`.
 - `addListener(fn)`: Subscribe to input events directly on the main thread.
+
+### `InputReader` (Worker Consumer)
+- `setBuffer(buffer)`: Attach or swap the 512-byte `SharedArrayBuffer` or `ArrayBuffer`.
+- `getMouse()`: Snapshot of `{ x, y, buttons, wheelX, wheelY }`.
+- `getMouseX()` / `getMouseY()`: Pointer coordinates mapped to render canvas space.
+- `getMouseButtons()`: Raw mouse button bitmask (1=Left, 2=Right, 4=Middle).
+- `isMouseButtonDown(button)`: Tests bitmask or DOM index 0.
+- `isMouseLeftDown()`, `isMouseRightDown()`, `isMouseMiddleDown()`: Convenience button checkers.
+- `getMouseWheelX()`, `getMouseWheelY()`: Accumulated wheel deltas.
+- `isKeyDown(keyCode)`: Synchronously queries 512-bit keymask (`DOM_KEY_MAP` virtual key codes).
+- `getKeysDown()`: Returns array of all actively held key codes.
+- `shouldClose()`: Returns true if the window close or ESC flag was triggered.
+- `getDimensions()`: Returns `{ windowWidth, windowHeight, renderWidth, renderHeight, dpiScale }`.
+- `waitFrame(expectedSync, timeoutMs)`: Pacing helper via `Atomics.wait`.
+
+---
+
+## Package Subpath Exports
+
+| Subpath | Target | Description |
+|---|---|---|
+| `canvas-window` | `./src/index.js` | Main bundle: `CanvasWindow`, `InputCoordinator`, `InputReader`, protocol |
+| `canvas-window/worker` | `./src/worker.js` | Worker bundle: `InputReader`, `DOM_KEY_MAP`, protocol (zero DOM code) |
+| `canvas-window/window` | `./src/ui/canvas-window.js` | Standalone UI window component |
+| `canvas-window/input` | `./src/input/input-coordinator.js` | Standalone input coordinator, reader, and keymap |
+| `canvas-window/protocol` | `./src/protocol.js` | Protocol constants and memory offsets |
+| `canvas-window/style.css` | `./src/ui/style.css` | Window stylesheets |
 
 ---
 

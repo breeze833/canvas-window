@@ -10,6 +10,7 @@ import {
   CanvasWindow,
   GraphicsWindowUI,
   InputCoordinator,
+  InputReader,
   DOM_KEY_MAP,
   INPUT_BUFFER_SIZE,
   INPUT_LAYOUT_OFFSETS,
@@ -145,7 +146,51 @@ assert.strictEqual(wasmView.getInt32(OFF_WINDOW_WIDTH, true), 800);
 
 console.log('✓ pollToBuffer and pollToWasm serialization verified');
 
-// Test 5: CanvasWindow DOM Lifecycle Mock
+// Test 5: InputReader Verification
+const reader = new InputReader(sharedBuf);
+assert.strictEqual(reader.hasBuffer(), true, 'InputReader should report hasBuffer() === true');
+
+const mouseSnapshot = reader.getMouse();
+assert.strictEqual(Math.round(mouseSnapshot.x), 250, 'reader.getMouse().x should match');
+assert.strictEqual(Math.round(mouseSnapshot.y), 150, 'reader.getMouse().y should match');
+assert.strictEqual(mouseSnapshot.buttons, 1, 'reader.getMouse().buttons should match');
+assert.strictEqual(mouseSnapshot.wheelY, 0, 'reader.getMouse().wheelY should be 0 after pollToBuffer flush');
+
+// Trigger new wheel event and verify reader picks it up
+wheelFn({ deltaX: 0, deltaY: 10, preventDefault() {} });
+assert.strictEqual(reader.getMouseWheelY(), -1, 'reader.getMouseWheelY() should be -1 after new wheel event');
+
+assert.strictEqual(reader.isMouseButtonDown(MOUSE_BUTTON_LEFT), true, 'Left button should be down via mask');
+assert.strictEqual(reader.isMouseButtonDown(0), true, 'Left button should be down via DOM index 0');
+assert.strictEqual(reader.isMouseButtonDown(MOUSE_BUTTON_RIGHT), false, 'Right button should not be down');
+
+assert.strictEqual(reader.isKeyDown(32), true, 'Key 32 (Space) should be down');
+assert.strictEqual(reader.isKeyDown(65), false, 'Key 65 (KeyA) should not be down');
+const keysDown = reader.getKeysDown();
+assert.strictEqual(keysDown.includes(32), true, 'getKeysDown() should include 32');
+
+const dims = reader.getDimensions();
+assert.strictEqual(dims.windowWidth, 800);
+assert.strictEqual(dims.windowHeight, 450);
+assert.strictEqual(dims.renderWidth, 800);
+assert.strictEqual(dims.renderHeight, 450);
+assert.strictEqual(dims.dpiScale, 1.0);
+assert.strictEqual(reader.shouldClose(), false, 'shouldClose should be false');
+
+// Verify close flag propagation
+coord.shouldClose = true;
+coord.updateSharedState();
+assert.strictEqual(reader.shouldClose(), true, 'shouldClose should be true when close is set');
+
+// Verify worker entry point export
+const workerMod = await import('../src/worker.js');
+assert.strictEqual(typeof workerMod.InputReader, 'function', 'worker.js should export InputReader');
+assert.strictEqual(typeof workerMod.DOM_KEY_MAP, 'object', 'worker.js should export DOM_KEY_MAP');
+assert.strictEqual(workerMod.INPUT_BUFFER_SIZE, 512, 'worker.js should export protocol constants');
+
+console.log('✓ InputReader and worker entrypoint verified');
+
+// Test 6: CanvasWindow DOM Lifecycle Mock
 let appendChildCalled = false;
 let canvasFocused = false;
 
@@ -220,11 +265,12 @@ assert.strictEqual(win.isOpen(), false, 'Window should report isOpen() === false
 
 console.log('✓ CanvasWindow DOM lifecycle, minimize, and focus verified');
 
-// Test 6: Verify TypeScript Declarations
+// Test 7: Verify TypeScript Declarations
 const dtsContent = fs.readFileSync(path.join(__dirname, '../types/index.d.ts'), 'utf8');
 assert.strictEqual(dtsContent.includes('export class CanvasWindow'), true);
 assert.strictEqual(dtsContent.includes('export const GraphicsWindowUI'), true);
 assert.strictEqual(dtsContent.includes('export class InputCoordinator'), true);
+assert.strictEqual(dtsContent.includes('export class InputReader'), true);
 assert.strictEqual(dtsContent.includes('export const INPUT_BUFFER_SIZE: 512'), true);
 assert.strictEqual(dtsContent.includes('pollToBuffer'), true);
 assert.strictEqual(dtsContent.includes('pollToWasm'), true);

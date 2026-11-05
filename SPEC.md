@@ -30,12 +30,12 @@
 ┌─────────────────┼───────────────────────────────────┼──────────────────┐
 │                 │                                   ▼                  │
 │   ┌─────────────┴─────────────┐      ┌──────────────────────────────┐  │
-│   │   Consumer Host Bridge    │      │      Shared Memory View      │  │
-│   │   (canvas-wasi/canvas-js) │      │                              │  │
-│   │                           │      │  - Synchronous Atomics Wait  │  │
-│   │  - OffscreenCanvas / 2D   │      │  - Zero-Copy Mouse/Key Poll  │  │
-│   │  - Frame Pacing & Timing  │      │  - ESC / Window Close Flag   │  │
-│   │  - Pixel Buffer Packing   │      │  - Direct pollToBuffer       │  │
+│   │   Consumer Host Bridge    │      │         InputReader          │  │
+│   │   (canvas-wasi / worker)  │      │  (Zero-DOM Worker Consumer)  │  │
+│   │                           │      │                              │  │
+│   │  - OffscreenCanvas / 2D   │◄────►│  - Synchronous Key/Mouse Poll│  │
+│   │  - Frame Pacing & Timing  │      │  - 512-bit Bitmask Decoding  │  │
+│   │  - Pixel Buffer Packing   │      │  - ESC / Window Close Flag   │  │
 │   └─────────────▲─────────────┘      └──────────────┬───────────────┘  │
 │                 │ Runtimes (C/C++, JS, Python, etc.)│                  │
 │   ┌─────────────┴───────────────────────────────────▼──────────────┐  │
@@ -244,14 +244,80 @@ class InputCoordinator {
 }
 ```
 
+### 5.3 `InputReader` (Worker Consumer API)
+
+Zero-DOM input consumer designed for Web Workers and background JS execution contexts reading synchronously from a 512-byte `SharedArrayBuffer` (or `ArrayBuffer`).
+
+```typescript
+interface InputReaderOptions {
+  sharedBuffer?: SharedArrayBuffer | ArrayBuffer | null;
+  buffer?: SharedArrayBuffer | ArrayBuffer | null;
+}
+
+interface MouseState {
+  x: number;
+  y: number;
+  buttons: number;
+  wheelX: number;
+  wheelY: number;
+}
+
+interface WindowDimensions {
+  windowWidth: number;
+  windowHeight: number;
+  renderWidth: number;
+  renderHeight: number;
+  dpiScale: number;
+}
+
+class InputReader {
+  constructor(bufferOrOptions?: SharedArrayBuffer | ArrayBuffer | InputReaderOptions | null);
+
+  setBuffer(buffer: SharedArrayBuffer | ArrayBuffer | null): void;
+  hasBuffer(): boolean;
+
+  // Window & Lifecycle queries
+  shouldClose(): boolean;
+  getDimensions(): WindowDimensions;
+  getWindowWidth(): number;
+  getWindowHeight(): number;
+  getRenderWidth(): number;
+  getRenderHeight(): number;
+  getDpiScale(): number;
+
+  // Mouse queries
+  getMouse(): MouseState;
+  getMouseX(): number;
+  getMouseY(): number;
+  getMouseButtons(): number;
+  isMouseButtonDown(button: number): boolean;
+  isMouseLeftDown(): boolean;
+  isMouseRightDown(): boolean;
+  isMouseMiddleDown(): boolean;
+  getMouseWheelX(): number;
+  getMouseWheelY(): number;
+
+  // Keyboard queries
+  isKeyDown(key: number): boolean;
+  getKeysDown(): number[];
+  getKeyPressedQueue(): number[];
+  getCharPressedQueue(): number[];
+
+  // Synchronization
+  waitFrame(expectedSync?: number, timeoutMs?: number): 'ok' | 'not-equal' | 'timed-out';
+}
+```
+
 ---
 
 ## 6. Package Exports
 
 | Subpath | Target | Purpose |
 |---|---|---|
-| `canvas-window` (`.`) | `./src/index.js` | Main package entry: `CanvasWindow`, `GraphicsWindowUI`, `InputCoordinator`, `DOM_KEY_MAP`, and protocol constants |
+| `canvas-window` (`.`) | `./src/index.js` | Main package entry: `CanvasWindow`, `GraphicsWindowUI`, `InputCoordinator`, `InputReader`, `DOM_KEY_MAP`, and protocol constants |
+| `canvas-window/worker` (`./worker`) | `./src/worker.js` | Lightweight worker entry: `InputReader`, `DOM_KEY_MAP`, protocol constants (zero DOM dependencies) |
 | `canvas-window/window` (`./window`) | `./src/ui/canvas-window.js` | Standalone window UI component |
-| `canvas-window/input` (`./input`) | `./src/input/input-coordinator.js` | Standalone input coordinator and key map |
+| `canvas-window/input` (`./input`) | `./src/input/input-coordinator.js` | Standalone input coordinator, input reader, and key map |
 | `canvas-window/protocol` (`./protocol`) | `./src/protocol.js` | 512-byte SharedArrayBuffer layout constants and masks |
 | `canvas-window/style.css` (`./style.css`) | `./src/ui/style.css` | Stylesheet for the floating window UI |
+

@@ -75,6 +75,56 @@ export class InputCoordinator {
   addListener(fn: (event: any) => void): () => void;
 }
 
+export interface InputReaderOptions {
+  sharedBuffer?: SharedArrayBuffer | ArrayBuffer | null;
+  buffer?: SharedArrayBuffer | ArrayBuffer | null;
+}
+
+export interface MouseState {
+  x: number;
+  y: number;
+  buttons: number;
+  wheelX: number;
+  wheelY: number;
+}
+
+export interface WindowDimensions {
+  windowWidth: number;
+  windowHeight: number;
+  renderWidth: number;
+  renderHeight: number;
+  dpiScale: number;
+}
+
+export class InputReader {
+  constructor(bufferOrOptions?: SharedArrayBuffer | ArrayBuffer | InputReaderOptions | null);
+  buffer: SharedArrayBuffer | ArrayBuffer | null;
+  setBuffer(buffer: SharedArrayBuffer | ArrayBuffer | null): void;
+  hasBuffer(): boolean;
+  shouldClose(): boolean;
+  getDimensions(): WindowDimensions;
+  getWindowWidth(): number;
+  getWindowHeight(): number;
+  getRenderWidth(): number;
+  getRenderHeight(): number;
+  getDpiScale(): number;
+  getMouse(): MouseState;
+  getMouseX(): number;
+  getMouseY(): number;
+  getMouseButtons(): number;
+  isMouseButtonDown(button: number): boolean;
+  isMouseLeftDown(): boolean;
+  isMouseRightDown(): boolean;
+  isMouseMiddleDown(): boolean;
+  getMouseWheelX(): number;
+  getMouseWheelY(): number;
+  isKeyDown(key: number): boolean;
+  getKeysDown(): number[];
+  getKeyPressedQueue(): number[];
+  getCharPressedQueue(): number[];
+  waitFrame(expectedSync?: number, timeoutMs?: number): 'ok' | 'not-equal' | 'timed-out';
+}
+
 export const DOM_KEY_MAP: Record<string, number>;
 
 // Protocol Constants

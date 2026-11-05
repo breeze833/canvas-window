@@ -23,6 +23,8 @@ import {
   MOUSE_BUTTON_MIDDLE
 } from '../protocol.js';
 
+export { InputReader } from './input-reader.js';
+
 export const DOM_KEY_MAP = {
   KeyA: 65, KeyB: 66, KeyC: 67, KeyD: 68, KeyE: 69, KeyF: 70, KeyG: 71,
   KeyH: 72, KeyI: 73, KeyJ: 74, KeyK: 75, KeyL: 76, KeyM: 77, KeyN: 78,
@@ -322,6 +324,8 @@ export class InputCoordinator {
     if (this.sharedBuffer) {
       const destU8 = new Uint8Array(rawBuffer, destPtr, 372);
       destU8.set(this.sharedU8.subarray(0, 372));
+      this.mouseWheelX = 0;
+      this.mouseWheelY = 0;
       this.sharedView.setFloat32(OFF_MOUSE_WHEEL_X, 0, true);
       this.sharedView.setFloat32(OFF_MOUSE_WHEEL_Y, 0, true);
       this.sharedView.setInt32(OFF_KEY_PRESSED_COUNT, 0, true);
